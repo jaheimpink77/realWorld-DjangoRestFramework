@@ -16,8 +16,12 @@ def account_registration(request):
         
         serializer = UserSerializer(data=user_data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()  
-        return Response({"user": serializer.data}, status=status.HTTP_201_CREATED)
+        user = serializer.save()
+
+        serializer_data = serializer.data
+        serializer_data['token'] = str(RefreshToken.for_user(user).access_token)
+
+        return Response({"user": serializer_data}, status=status.HTTP_201_CREATED)
     
     except Exception:
         return Response(status=status.HTTP_400_BAD_REQUEST)
@@ -72,11 +76,19 @@ class ProfileDetailView(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'delete']
     
     def get_permissions(self):
-        if self.action == 'list':
+        if self.action == 'retrieve':
             return [IsAuthenticatedOrReadOnly(),]
         return super().get_permissions()
     
-    def list(self, request, username=None, *args, **kwargs):
+    def list(self, request, *args, **kwargs):
+        # No profile collection endpoint exists; only /profiles/<username>.
+        return Response({"errors": {
+            "body": [
+                "Not Found"
+            ]
+        }}, status=status.HTTP_404_NOT_FOUND)
+    
+    def retrieve(self, request, username=None, *args, **kwargs):
         try: 
             profile = User.objects.get(username=username)
             serializer = self.get_serializer(profile)
@@ -87,7 +99,7 @@ class ProfileDetailView(viewsets.ModelViewSet):
                 "body": [
                     "Invalid User"
                 ]
-            }})
+            }}, status=status.HTTP_404_NOT_FOUND)
     
     @action(detail=True, methods=['post', 'delete'])
     def follow(self, request, username=None, *args, **kwargs):

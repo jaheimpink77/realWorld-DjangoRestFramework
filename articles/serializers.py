@@ -57,7 +57,7 @@ class ArticleSerializer(TaggitSerializer, serializers.ModelSerializer):
         return instance.favorites.count()
        
     def create(self, validated_data):
-        tags = validated_data.pop('tags')
+        tags = validated_data.pop('tags', [])
         article = Article(
             author=self.context['request'].user,
             **validated_data
@@ -67,7 +67,7 @@ class ArticleSerializer(TaggitSerializer, serializers.ModelSerializer):
         return article
     
     def update(self, instance, validated_data):
-        tags = validated_data.pop('tags')
+        tags = validated_data.pop('tags', [])
         for key, value in validated_data.items():
             setattr(instance, key, value)
         instance.save()

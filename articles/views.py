@@ -86,28 +86,39 @@ class ArticleView(viewsets.ModelViewSet):
                     ]
                 }}, status=status.HTTP_404_NOT_FOUND)  
             
+    def paginate(self, request, queryset):
+        """Slice by the spec's limit/offset params, counting before the slice."""
+        def as_int(name, default):
+            try:
+                return max(int(request.query_params.get(name, default)), 0)
+            except (TypeError, ValueError):
+                return default
+
+        limit = as_int('limit', 20)
+        offset = as_int('offset', 0)
+        return queryset.count(), queryset[offset:offset + limit]
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset()).order_by('-created')
+        count, page = self.paginate(request, queryset)
+        serializer = self.get_serializer(page, many=True)
+        return Response({
+            'articles': serializer.data,
+            'articlesCount': count,
+        })
+
     @action(detail=False)
     def feed(self, request, *args, **kwargs):
-        try:
-            followed_authors = User.objects.filter(followers=request.user)
-            queryset = self.get_queryset()
-            articles = queryset.filter(
-                author__in=followed_authors).order_by('-created')
-            queryset = self.filter_queryset(articles)
-            
-            serializer = self.get_serializer(queryset, many=True)
-            response = {
-                'comments': serializer.data,
-                'articleCount': len(serializer.data)
-            }
-            return Response(response)
-               
-        except Exception:
-            return Response({"errors": {
-                "body": [
-                    "Bad Request"
-                ]
-            }}, status=status.HTTP_404_NOT_FOUND)         
+        followed_authors = User.objects.filter(followers=request.user)
+        queryset = self.filter_queryset(
+            self.get_queryset().filter(author__in=followed_authors)
+        ).order_by('-created')
+        count, page = self.paginate(request, queryset)
+        serializer = self.get_serializer(page, many=True)
+        return Response({
+            'articles': serializer.data,
+            'articlesCount': count,
+        })
         
     def retrieve(self, request, slug, *args, **kwargs):
         try:
